@@ -1,0 +1,8 @@
+*.onnx
+*.ort
+*.so
+*.so.*
+*.dylib
+*.dll
+*.zip
+coverage.out

@@ -1,0 +1,47 @@
+# Deployment and operational guidance
+
+## Runtime
+
+The current backend is pinned to
+`github.com/shota3506/onnxruntime-purego` commit
+`8db8bd7424b218de9ca0ebd894da8e86f5dc7983`. It requires Go 1.25 or newer
+and ONNX Runtime 1.23.x (API 23). Supply an explicit shared-library path at
+startup. CPU inference is the supported execution path in the first release.
+
+The upstream wrapper is pre-release and its API is unstable. It is isolated
+behind `internal/ort`; applications should use only this module's public API.
+Request cancellation is checked before and after native inference, but ONNX
+Runtime execution itself cannot currently be interrupted through the upstream
+wrapper.
+
+## Model licensing
+
+This repository is MIT-licensed code only. Model weights have independent
+licenses. In particular, the models distributed by the InsightFace project
+are described as non-commercial research models. Do not use those weights in
+military, government, commercial, or production deployments without an
+explicit license that covers the intended use. Use separately licensed or
+internally trained weights when necessary.
+
+## Biometric data
+
+Face images and embeddings are biometric data. Encrypt them at rest and in
+transit, restrict access, audit enrollment and lookup operations, define a
+retention/deletion policy, and avoid logging image bytes or embeddings.
+
+## Threshold calibration
+
+No universal similarity threshold represents a probability. Calibrate the
+minimum cosine similarity and the Top-1/Top-2 identity margin on data matching
+the deployed cameras, demographics, lighting, pose, compression, and expected
+gallery size. For a 3,000-person gallery, report FPIR and FNIR at the
+identity-search level, not only pairwise verification accuracy.
+
+## Embedding migration
+
+Give every stored embedding a model/version identifier. When the model
+fingerprint changes, regenerate embeddings through an idempotent enrollment
+API from retained source images. During migration, keep versioned galleries
+separate and switch atomically after coverage and quality checks pass. If the
+source image is unavailable, the old embedding cannot be converted into the
+new model's embedding space and must be re-enrolled.

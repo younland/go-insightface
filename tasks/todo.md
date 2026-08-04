@@ -1,0 +1,23 @@
+# Tasks
+
+- [x] Bootstrap module and runtime adapter
+  - Acceptance: pinned dependency; tiny upstream ONNX model loads and runs.
+  - Verify: `go test ./internal/ort`.
+- [x] Pure image and affine primitives
+  - Acceptance: deterministic resize, NCHW conversion, five-point similarity transform.
+  - Verify: unit and golden tests.
+- [x] SCRFD detector
+  - Acceptance: validated output layouts, anchors, boxes, landmarks, NMS.
+  - Verify: synthetic tensor tests and external-model integration test.
+- [x] ArcFace embedder
+  - Acceptance: aligned 112×112 input and unit-normalized embedding.
+  - Verify: reference cosine >= 0.999.
+- [x] Engine lifecycle and concurrency
+  - Acceptance: no globals, idempotent close, concurrent calls safe.
+  - Verify: `go test -race ./...`.
+- [x] Identity matcher and scale benchmark
+  - Acceptance: exact identity Top1/Top2 with distance and margin; 9,000-vector benchmark.
+  - Verify: correctness tests and `go test -bench . -benchmem ./...`.
+- [ ] Publish
+  - Acceptance: CI, README, licenses, tagged release, GitHub repository under `lib-x`.
+  - Verify: clean clone passes unit tests and release artifacts contain no models.
