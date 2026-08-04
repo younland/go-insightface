@@ -5,6 +5,8 @@ import (
 	"errors"
 	"fmt"
 	"image"
+	"io"
+	"io/fs"
 	"math"
 	"reflect"
 	"sync"
@@ -13,6 +15,7 @@ import (
 	"github.com/lib-x/go-insightface/internal/imageutil"
 	"github.com/lib-x/go-insightface/internal/ort"
 	"github.com/lib-x/go-insightface/internal/scrfd"
+	"github.com/lib-x/go-insightface/runtimefs"
 )
 
 const (
@@ -29,6 +32,7 @@ var (
 	ErrEngineClosed     = errors.New("insightface: engine is closed")
 	ErrInitialization   = errors.New("insightface: engine initialization failed")
 	ErrInference        = errors.New("insightface: model inference failed")
+	ErrInvalidRuntimeFS = errors.New("insightface: runtime fs is nil")
 )
 
 // Config identifies the ONNX Runtime library and the two model files.
@@ -103,29 +107,103 @@ func New(config Config) (*Engine, error) {
 	if err != nil {
 		return nil, fmt.Errorf("%w: open ONNX Runtime: %v", ErrInitialization, err)
 	}
-	fail := func(cause error) (*Engine, error) {
-		_ = runtime.Close()
-		return nil, fmt.Errorf("%w: %v", ErrInitialization, cause)
-	}
-
 	detectorSession, err := runtime.Load(resolved.DetectorModel, resolved.IntraOpThreads)
 	if err != nil {
-		return fail(fmt.Errorf("load detector: %w", err))
+		return failInitialization(runtime, fmt.Errorf("load detector: %w", err))
 	}
 	recognizerSession, err := runtime.Load(resolved.RecognizerModel, resolved.IntraOpThreads)
 	if err != nil {
-		return fail(fmt.Errorf("load recognizer: %w", err))
+		return failInitialization(runtime, fmt.Errorf("load recognizer: %w", err))
 	}
+	return assembleEngine(runtime, detectorSession, recognizerSession, decoderConfig)
+}
+
+// NewFromFS creates an Engine whose model files and runtime library are read
+// from source. Models are loaded directly from source; the runtime library is
+// materialized because operating-system dynamic loaders require a file path.
+// Config path fields are interpreted as fs.ValidPath names in source.
+func NewFromFS(ctx context.Context, config Config, source runtimefs.FS) (*Engine, error) {
+	if ctx == nil {
+		return nil, ErrInvalidContext
+	}
+	if isNilRuntimeFS(source) {
+		return nil, ErrInvalidRuntimeFS
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+
+	resolved, decoderConfig, err := normalizeConfig(config)
+	if err != nil {
+		return nil, err
+	}
+	if !fs.ValidPath(resolved.RuntimeLibrary) || !fs.ValidPath(resolved.DetectorModel) || !fs.ValidPath(resolved.RecognizerModel) {
+		return nil, fmt.Errorf("runtime library and model names must be valid fs paths: %w", ErrInvalidConfig)
+	}
+	runtimePath, err := source.Materialize(ctx, resolved.RuntimeLibrary)
+	if err != nil {
+		if contextErr := ctx.Err(); contextErr != nil {
+			return nil, contextErr
+		}
+		return nil, fmt.Errorf("%w: materialize ONNX Runtime: %v", ErrInitialization, err)
+	}
+	runtime, err := ort.Open(runtimePath)
+	if err != nil {
+		return nil, fmt.Errorf("%w: open ONNX Runtime: %v", ErrInitialization, err)
+	}
+
+	detectorModel, err := source.Open(resolved.DetectorModel)
+	if err != nil {
+		return failInitialization(runtime, fmt.Errorf("open detector model: %w", err))
+	}
+	detectorSession, loadErr := runtime.LoadReader(resolved.DetectorModel, contextReader{ctx: ctx, reader: detectorModel}, resolved.IntraOpThreads)
+	closeErr := detectorModel.Close()
+	if loadErr != nil {
+		return failInitialization(runtime, fmt.Errorf("load detector: %w", loadErr))
+	}
+	if closeErr != nil {
+		return failInitialization(runtime, fmt.Errorf("close detector model: %w", closeErr))
+	}
+	if err := ctx.Err(); err != nil {
+		_ = runtime.Close()
+		return nil, err
+	}
+
+	recognizerModel, err := source.Open(resolved.RecognizerModel)
+	if err != nil {
+		return failInitialization(runtime, fmt.Errorf("open recognizer model: %w", err))
+	}
+	recognizerSession, loadErr := runtime.LoadReader(resolved.RecognizerModel, contextReader{ctx: ctx, reader: recognizerModel}, resolved.IntraOpThreads)
+	closeErr = recognizerModel.Close()
+	if loadErr != nil {
+		return failInitialization(runtime, fmt.Errorf("load recognizer: %w", loadErr))
+	}
+	if closeErr != nil {
+		return failInitialization(runtime, fmt.Errorf("close recognizer model: %w", closeErr))
+	}
+	if err := ctx.Err(); err != nil {
+		_ = runtime.Close()
+		return nil, err
+	}
+	return assembleEngine(runtime, detectorSession, recognizerSession, decoderConfig)
+}
+
+func assembleEngine(runtime *ort.Runtime, detectorSession, recognizerSession *ort.Session, decoderConfig scrfd.DecoderConfig) (*Engine, error) {
 	detector, err := scrfd.NewDetector(detectorSession, decoderConfig)
 	if err != nil {
-		return fail(fmt.Errorf("configure detector: %w", err))
+		return failInitialization(runtime, fmt.Errorf("configure detector: %w", err))
 	}
 	embedder, err := arcface.NewEmbedder(recognizerSession)
 	if err != nil {
-		return fail(fmt.Errorf("configure recognizer: %w", err))
+		return failInitialization(runtime, fmt.Errorf("configure recognizer: %w", err))
 	}
 
 	return &Engine{runtime: runtime, detector: detector, embedder: embedder}, nil
+}
+
+func failInitialization(runtime *ort.Runtime, cause error) (*Engine, error) {
+	_ = runtime.Close()
+	return nil, fmt.Errorf("%w: %v", ErrInitialization, cause)
 }
 
 func (e *Engine) Detect(ctx context.Context, src image.Image) ([]Detection, error) {
@@ -300,6 +378,35 @@ func isNilImage(src image.Image) bool {
 	default:
 		return false
 	}
+}
+
+func isNilRuntimeFS(source runtimefs.FS) bool {
+	if source == nil {
+		return true
+	}
+	value := reflect.ValueOf(source)
+	switch value.Kind() {
+	case reflect.Chan, reflect.Func, reflect.Interface, reflect.Map, reflect.Pointer, reflect.Slice:
+		return value.IsNil()
+	default:
+		return false
+	}
+}
+
+type contextReader struct {
+	ctx    context.Context
+	reader io.Reader
+}
+
+func (r contextReader) Read(buffer []byte) (int, error) {
+	if err := r.ctx.Err(); err != nil {
+		return 0, err
+	}
+	count, err := r.reader.Read(buffer)
+	if contextErr := r.ctx.Err(); contextErr != nil {
+		return count, contextErr
+	}
+	return count, err
 }
 
 func publicDetection(detection scrfd.Detection) Detection {

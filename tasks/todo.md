@@ -18,6 +18,11 @@
 - [x] Identity matcher and scale benchmark
   - Acceptance: exact identity Top1/Top2 with distance and margin; 9,000-vector benchmark.
   - Verify: correctness tests and `go test -bench . -benchmem ./...`.
+- [x] Optional runtime and model asset provisioning
+  - Acceptance: build-stage verified download plus caller-owned `go:embed`; no binary assets in this module.
+  - Verify: transactional failure tests, archive safety tests, and real `NewFromFS` runtime/model loading.
 - [x] Publish
   - Acceptance: CI, README, licenses, tagged release, GitHub repository under `lib-x`.
   - Verify: clean clone passes unit tests and release artifacts contain no models.
+- [x] Publish v0.2.0 asset provisioning release
+  - Acceptance: CI passes, annotated tag and GitHub release exist, clean tag clone passes verification.

@@ -6,13 +6,20 @@ The current backend is pinned to
 `github.com/shota3506/onnxruntime-purego` commit
 `8db8bd7424b218de9ca0ebd894da8e86f5dc7983`. It requires Go 1.25 or newer
 and ONNX Runtime 1.23.x (API 23). Supply an explicit shared-library path at
-startup. CPU inference is the supported execution path in the first release.
+startup, or opt into the build/download and caller-embedding mechanisms in
+[asset provisioning](assets.md). CPU inference is the supported execution
+path in the first release.
 
 The upstream wrapper is pre-release and its API is unstable. It is isolated
 behind `internal/ort`; applications should use only this module's public API.
 Request cancellation is checked before and after native inference, but ONNX
 Runtime execution itself cannot currently be interrupted through the upstream
 wrapper.
+
+When embedding assets, allow the process to create its private user cache. The
+runtime shared library must exist as a real file for the operating-system
+dynamic loader; embedded models remain streams. Build and test a distinct
+bundle for each target OS and architecture.
 
 ## Model licensing
 

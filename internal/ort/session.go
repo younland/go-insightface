@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"math"
 	"sync"
 
@@ -77,22 +78,44 @@ func (r *Runtime) Load(modelPath string, threads int) (*Session, error) {
 	if modelPath == "" {
 		return nil, errors.New("model path is empty")
 	}
+	return r.loadLocked(modelPath, func() (*upstream.Session, error) {
+		return r.runtime.NewSession(r.env, modelPath, &upstream.SessionOptions{
+			IntraOpNumThreads: threads,
+		})
+	})
+}
+
+// LoadReader creates a session from an ONNX model stream.
+// modelLabel is used only for error context.
+func (r *Runtime) LoadReader(modelLabel string, modelReader io.Reader, threads int) (*Session, error) {
+	if modelReader == nil {
+		return nil, errors.New("model reader is nil")
+	}
+	if modelLabel == "" {
+		modelLabel = "<reader>"
+	}
+	return r.loadLocked(modelLabel, func() (*upstream.Session, error) {
+		return r.runtime.NewSessionFromReader(r.env, modelReader, &upstream.SessionOptions{
+			IntraOpNumThreads: threads,
+		})
+	})
+}
+
+func (r *Runtime) loadLocked(modelLabel string, load func() (*upstream.Session, error)) (*Session, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	if r.closed || r.runtime == nil || r.env == nil {
 		return nil, ErrClosed
 	}
-	session, err := r.runtime.NewSession(r.env, modelPath, &upstream.SessionOptions{
-		IntraOpNumThreads: threads,
-	})
+	session, err := load()
 	if err != nil {
-		return nil, fmt.Errorf("load ONNX model %q: %w", modelPath, err)
+		return nil, fmt.Errorf("load ONNX model %q: %w", modelLabel, err)
 	}
 	inputs := append([]string(nil), session.InputNames()...)
 	outputs := append([]string(nil), session.OutputNames()...)
 	if len(inputs) != 1 || len(outputs) == 0 {
 		session.Close()
-		return nil, fmt.Errorf("model must have one input and at least one output, got %d inputs and %d outputs", len(inputs), len(outputs))
+		return nil, fmt.Errorf("load ONNX model %q: model must have one input and at least one output, got %d inputs and %d outputs", modelLabel, len(inputs), len(outputs))
 	}
 	wrapped := &Session{runtime: r.runtime, session: session, inputName: inputs[0], outputNames: outputs}
 	r.sessions = append(r.sessions, wrapped)

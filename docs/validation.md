@@ -40,6 +40,17 @@ research models; they are not distributed by this repository.
 - Exact matching over 3,000 identities × 3 samples × 512 dimensions measured
   approximately `5.11 ms/op`, `0 B/op`, and `0 allocs/op` on the machine above.
 - Linux ARM64 with CGO disabled passed cross-compilation (`go build ./...`).
+- `NewFromFS` materialized the real Linux runtime from a content-addressed
+  cache, loaded the upstream tiny ONNX model directly from an `fs.FS` reader,
+  and created and closed both sessions under the race detector.
+- The build-stage downloader verified the exact official ONNX Runtime 1.23.2
+  Linux AMD64 archive (`1fa4dcae...c5f9b`), extracted its declared shared
+  library member, and downloaded both external model fixtures from a local
+  HTTP server. All three output hashes matched, and the extracted runtime ran
+  the upstream integration model successfully.
+- Failure-injection tests confirmed that a bad final model leaves the prior
+  three-asset output bundle intact; success replaces it without retaining
+  stale files.
 
 ## Commands
 
@@ -50,6 +61,10 @@ go vet ./...
 go test -run '^$' -bench . -benchmem ./...
 CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build ./...
 ```
+
+Asset provisioning additionally ran the CLI against an HTTP-served copy of
+the official runtime archive and the two external model fixtures, then ran
+`TestRuntimeExecutesONNXModel` against the extracted output library.
 
 The integration run supplied the runtime, model, image, and independent JSON
 reference paths through environment variables as documented in the README.

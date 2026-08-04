@@ -1,6 +1,10 @@
 package ort
 
-import "testing"
+import (
+	"errors"
+	"os"
+	"testing"
+)
 
 func TestTensorValidate(t *testing.T) {
 	tests := []struct {
@@ -26,5 +30,25 @@ func TestTensorValidate(t *testing.T) {
 func TestElementCountRejectsOverflow(t *testing.T) {
 	if _, err := elementCount([]int64{1 << 62, 8}); err == nil {
 		t.Fatal("expected overflow error")
+	}
+}
+
+func TestLoadReaderRejectsNilReader(t *testing.T) {
+	var runtime Runtime
+
+	_, err := runtime.LoadReader("fixture.onnx", nil, 1)
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if err.Error() != "model reader is nil" {
+		t.Fatalf("LoadReader() error = %v, want model reader is nil", err)
+	}
+}
+
+func TestLoadReaderReturnsClosedError(t *testing.T) {
+	runtime := &Runtime{closed: true}
+	_, err := runtime.LoadReader("fixture.onnx", os.Stdin, 1)
+	if !errors.Is(err, ErrClosed) {
+		t.Fatalf("LoadReader() error = %v, want %v", err, ErrClosed)
 	}
 }

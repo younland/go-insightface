@@ -19,7 +19,14 @@ func TestRuntimeExecutesONNXModel(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer runtime.Close()
-	session, err := runtime.Load(model, 1)
+
+	modelFile, err := os.Open(model)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer modelFile.Close()
+
+	session, err := runtime.LoadReader(model, modelFile, 1)
 	if err != nil {
 		t.Fatal(err)
 	}

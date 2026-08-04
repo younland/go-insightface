@@ -6,10 +6,12 @@ import (
 	"image"
 	"sync"
 	"testing"
+	"testing/fstest"
 	"time"
 
 	"github.com/lib-x/go-insightface/internal/imageutil"
 	"github.com/lib-x/go-insightface/internal/scrfd"
+	"github.com/lib-x/go-insightface/runtimefs"
 )
 
 func TestNormalizeConfigAppliesDefaults(t *testing.T) {
@@ -106,6 +108,31 @@ func TestEngineRejectsNilContextAndTypedNilImage(t *testing.T) {
 	var src *image.RGBA
 	if _, err := engine.Detect(context.Background(), src); !errors.Is(err, ErrInvalidImage) {
 		t.Fatalf("Detect(typed nil image) error = %v", err)
+	}
+}
+
+func TestNewFromFSRejectsNilContextAndSource(t *testing.T) {
+	config := Config{RuntimeLibrary: "runtime", DetectorModel: "detector", RecognizerModel: "recognizer"}
+	if _, err := NewFromFS(nil, config, nil); !errors.Is(err, ErrInvalidContext) {
+		t.Fatalf("NewFromFS(nil context) error = %v, want %v", err, ErrInvalidContext)
+	}
+	if _, err := NewFromFS(context.Background(), config, nil); !errors.Is(err, ErrInvalidRuntimeFS) {
+		t.Fatalf("NewFromFS(nil source) error = %v, want %v", err, ErrInvalidRuntimeFS)
+	}
+}
+
+func TestNewFromFSRejectsInvalidFSPaths(t *testing.T) {
+	source, err := runtimefs.New(fstest.MapFS{}, t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = NewFromFS(t.Context(), Config{
+		RuntimeLibrary:  "../runtime",
+		DetectorModel:   "detector",
+		RecognizerModel: "recognizer",
+	}, source)
+	if !errors.Is(err, ErrInvalidConfig) {
+		t.Fatalf("NewFromFS() error = %v, want ErrInvalidConfig", err)
 	}
 }
 

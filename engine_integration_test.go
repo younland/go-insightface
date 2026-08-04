@@ -10,7 +10,11 @@ import (
 	_ "image/png"
 	"math"
 	"os"
+	"path/filepath"
+	"strings"
 	"testing"
+
+	"github.com/lib-x/go-insightface/runtimefs"
 )
 
 func TestEngineRunsLicensedExternalModels(t *testing.T) {
@@ -62,6 +66,36 @@ func TestEngineRunsLicensedExternalModels(t *testing.T) {
 
 	if referencePath := os.Getenv("REFERENCE_RESULT"); referencePath != "" {
 		compareReferenceResult(t, referencePath, faces[0])
+	}
+}
+
+func TestEngineLoadsRuntimeAndModelsFromFS(t *testing.T) {
+	library := os.Getenv("ORT_LIBRARY")
+	model := os.Getenv("ORT_TEST_MODEL")
+	if library == "" || model == "" {
+		t.Skip("ORT_LIBRARY and ORT_TEST_MODEL are required")
+	}
+	if !filepath.IsAbs(library) || !filepath.IsAbs(model) {
+		t.Skip("runtimefs integration requires absolute fixture paths")
+	}
+
+	source, err := runtimefs.New(os.DirFS(string(filepath.Separator)), t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	toFSPath := func(path string) string {
+		return strings.TrimPrefix(filepath.ToSlash(path), "/")
+	}
+	engine, err := NewFromFS(context.Background(), Config{
+		RuntimeLibrary:  toFSPath(library),
+		DetectorModel:   toFSPath(model),
+		RecognizerModel: toFSPath(model),
+	}, source)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := engine.Close(); err != nil {
+		t.Fatal(err)
 	}
 }
 

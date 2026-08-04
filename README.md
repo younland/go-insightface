@@ -21,9 +21,75 @@ No model weights or biometric samples are included.
 go get github.com/lib-x/go-insightface
 ```
 
-Download ONNX Runtime 1.23.x for the deployment platform and provide an
-explicit path to its shared library. Provide separately licensed,
-SCRFD/ArcFace-compatible ONNX models; see [the model contract](docs/model-contract.md).
+Assets can be supplied as ordinary files, downloaded during the calling
+application's build, or embedded by the calling application. This module does
+not contain or publish ONNX Runtime binaries or model weights. See
+[asset provisioning](docs/assets.md) and [the model contract](docs/model-contract.md).
+
+## Asset provisioning
+
+The existing file-path API remains the simplest option. To download verified
+assets during `go generate`, a Makefile, or a container build, create a
+manifest containing your licensed models:
+
+```json
+{
+  "detector": {
+    "url": "https://models.example/detector.onnx",
+    "sha256": "<64 lowercase hex characters>"
+  },
+  "recognizer": {
+    "url": "https://models.example/recognizer.onnx",
+    "sha256": "<64 lowercase hex characters>"
+  }
+}
+```
+
+Then run:
+
+```bash
+go run github.com/lib-x/go-insightface/cmd/insightface-assets@v0.2.0 \
+  -manifest insightface-assets.json \
+  -output ./faceassets/files
+```
+
+When `runtime` is omitted, the command selects the pinned official ONNX
+Runtime 1.23.2 archive for the target OS and architecture. Model URLs and
+SHA-256 values are always supplied by the caller. A verified bundle replaces
+the output as one serialized publish operation; the directory must be
+dedicated to this tool.
+
+Embedding is opt-in and happens only in the calling application:
+
+```go
+import (
+    "context"
+    "embed"
+
+    insightface "github.com/lib-x/go-insightface"
+    "github.com/lib-x/go-insightface/runtimefs"
+)
+
+//go:embed files
+var bundled embed.FS
+
+func newEngine(ctx context.Context) (*insightface.Engine, error) {
+    source, err := runtimefs.New(bundled, "")
+    if err != nil {
+        return nil, err
+    }
+    return insightface.NewFromFS(ctx, insightface.Config{
+        RuntimeLibrary:  "files/runtime/libonnxruntime.so.1.23.2",
+        DetectorModel:   "files/models/detector.onnx",
+        RecognizerModel: "files/models/recognizer.onnx",
+    }, source)
+}
+```
+
+Models are loaded directly from the embedded filesystem. The dynamic runtime
+library must be materialized into a content-addressed user cache because the
+operating-system loader requires a path. `runtimefs` is optional; applications
+that use `New` do not need it.
 
 ## Detect and embed
 

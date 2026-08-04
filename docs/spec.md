@@ -50,6 +50,9 @@ The public API must:
 ## Project Structure
 
 - Root package: stable engine, face, embedding, and matcher API.
+- `assets`: verified, cached, transactional build-stage asset acquisition.
+- `cmd/insightface-assets`: dependency-free build tool over `assets.Download`.
+- `runtimefs`: optional caller-asset filesystem and runtime materialization.
 - `internal/imageutil`: resize, CHW conversion, affine alignment, bilinear sampling.
 - `internal/scrfd`: SCRFD tensor decoding, anchors, NMS, landmark output.
 - `internal/arcface`: ArcFace preprocessing and embedding normalization.
@@ -88,6 +91,7 @@ func (e *Engine) Analyze(ctx context.Context, src image.Image) ([]Face, error) {
 ## Boundaries
 
 - Always: pin dependency commits; validate tensor names/shapes/types; L2-normalize embeddings; close every runtime tensor; document model fingerprints.
+- Always: keep all runtime/model payloads outside the module; require model URLs and hashes from the caller.
 - Ask first: add GPU providers, commit model weights, change the public API, or integrate into HoloFace.
 - Never: label cosine similarity as probability; silently accept unknown tensor layouts; expose unrestricted biometric fixtures; claim military suitability without field FPIR/FNIR evaluation.
 
@@ -101,6 +105,8 @@ func (e *Engine) Analyze(ctx context.Context, src image.Image) ([]Face, error) {
 - Concurrent inference passes `go test -race`.
 - Exact search over 9,000 embeddings (3,000 identities × 3) has no correctness loss and a documented benchmark.
 - Repository contains license/dependency/model-license guidance and no model weights.
+- Existing `New(Config)` remains compatible; optional `NewFromFS` loads models from caller-owned `fs.FS` assets.
+- Build downloads verify SHA-256, stage all assets before publishing, and serialize publishers targeting the same output.
 
 ## Open Questions
 
