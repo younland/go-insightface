@@ -18,6 +18,6 @@
 - [x] Identity matcher and scale benchmark
   - Acceptance: exact identity Top1/Top2 with distance and margin; 9,000-vector benchmark.
   - Verify: correctness tests and `go test -bench . -benchmem ./...`.
-- [ ] Publish
+- [x] Publish
   - Acceptance: CI, README, licenses, tagged release, GitHub repository under `lib-x`.
   - Verify: clean clone passes unit tests and release artifacts contain no models.
