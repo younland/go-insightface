@@ -200,12 +200,40 @@ go vet ./...
 go test -run '^$' -bench . -benchmem ./...
 ```
 
+### Download models for integration testing
+
+The `yakhyo/face-reidentification` v0.0.1 release provides the SCRFD 10G and
+ArcFace ResNet-50 ONNX files used by this project's technical compatibility
+tests. Download them into a local, ignored directory and verify their hashes:
+
+```bash
+mkdir -p .test-assets/models
+curl -fL \
+  -o .test-assets/models/det_10g.onnx \
+  https://github.com/yakhyo/face-reidentification/releases/download/v0.0.1/det_10g.onnx
+curl -fL \
+  -o .test-assets/models/w600k_r50.onnx \
+  https://github.com/yakhyo/face-reidentification/releases/download/v0.0.1/w600k_r50.onnx
+
+printf '%s  %s\n' \
+  5838f7fe053675b1c7a08b633df49e7af5495cee0493c7dcf6697200b85b5b91 \
+  .test-assets/models/det_10g.onnx \
+  4c06341c33c2ca1f86781dab0e829f88ad5b64be9fba56e56bc9ebdefc619e43 \
+  .test-assets/models/w600k_r50.onnx | sha256sum --check
+```
+
+These files are external InsightFace-derived weights. The download source
+does not grant production rights, and the source repository does not declare
+a license for the release assets. Use them only after reviewing the applicable
+model terms; the commands above document test reproducibility, not permission
+for commercial, government, military, or production use.
+
 An end-to-end test accepts external models and a local face image:
 
 ```bash
 ORT_LIBRARY=/path/libonnxruntime.so.1.23.2 \
-DETECTOR_MODEL=/path/detector.onnx \
-RECOGNIZER_MODEL=/path/recognizer.onnx \
+DETECTOR_MODEL="$PWD/.test-assets/models/det_10g.onnx" \
+RECOGNIZER_MODEL="$PWD/.test-assets/models/w600k_r50.onnx" \
 FACE_IMAGE=/path/face.jpg \
 go test -tags=integration -run TestEngineRunsLicensedExternalModels .
 ```
