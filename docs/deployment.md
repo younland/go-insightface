@@ -17,6 +17,11 @@ with GPU providers fails (for example a GPU build without CUDA drivers), the
 adapter logs the failure and retries on CPU; CPU-only builds are unaffected.
 Use a CPU build of ONNX Runtime to force CPU inference.
 
+Sessions are created with `session.intra_op.allow_spinning=0` by default so
+idle sessions do not keep the intra-op thread pool spinning on a CPU core.
+`Config.SessionConfig` passes additional session configuration entries
+through `AddSessionConfigEntry`; caller entries override defaults per key.
+
 The upstream wrapper is untagged and its API is unstable. It is isolated
 behind `internal/ort`; applications should use only this module's public API.
 Request cancellation is checked before and after native inference, but ONNX

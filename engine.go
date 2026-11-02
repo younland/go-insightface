@@ -47,6 +47,11 @@ type Config struct {
 	DetectionThreshold  float32
 	NMSThreshold        float32
 	IntraOpThreads      int
+	// SessionConfig lists extra ONNX Runtime session configuration entries
+	// (applied through AddSessionConfigEntry). Entries merge over the adapter
+	// defaults, so a key like "session.intra_op.allow_spinning" can be
+	// re-enabled by setting it here. Keys and values must be non-empty.
+	SessionConfig map[string]string
 }
 
 type Point struct {
@@ -107,11 +112,11 @@ func New(config Config) (*Engine, error) {
 	if err != nil {
 		return nil, fmt.Errorf("%w: open ONNX Runtime: %v", ErrInitialization, err)
 	}
-	detectorSession, err := runtime.Load(resolved.DetectorModel, resolved.IntraOpThreads)
+	detectorSession, err := runtime.Load(resolved.DetectorModel, resolved.IntraOpThreads, resolved.SessionConfig)
 	if err != nil {
 		return failInitialization(runtime, fmt.Errorf("load detector: %w", err))
 	}
-	recognizerSession, err := runtime.Load(resolved.RecognizerModel, resolved.IntraOpThreads)
+	recognizerSession, err := runtime.Load(resolved.RecognizerModel, resolved.IntraOpThreads, resolved.SessionConfig)
 	if err != nil {
 		return failInitialization(runtime, fmt.Errorf("load recognizer: %w", err))
 	}
@@ -156,7 +161,7 @@ func NewFromFS(ctx context.Context, config Config, source runtimefs.FS) (*Engine
 	if err != nil {
 		return failInitialization(runtime, fmt.Errorf("open detector model: %w", err))
 	}
-	detectorSession, loadErr := runtime.LoadReader(resolved.DetectorModel, contextReader{ctx: ctx, reader: detectorModel}, resolved.IntraOpThreads)
+	detectorSession, loadErr := runtime.LoadReader(resolved.DetectorModel, contextReader{ctx: ctx, reader: detectorModel}, resolved.IntraOpThreads, resolved.SessionConfig)
 	closeErr := detectorModel.Close()
 	if loadErr != nil {
 		return failInitialization(runtime, fmt.Errorf("load detector: %w", loadErr))
@@ -173,7 +178,7 @@ func NewFromFS(ctx context.Context, config Config, source runtimefs.FS) (*Engine
 	if err != nil {
 		return failInitialization(runtime, fmt.Errorf("open recognizer model: %w", err))
 	}
-	recognizerSession, loadErr := runtime.LoadReader(resolved.RecognizerModel, contextReader{ctx: ctx, reader: recognizerModel}, resolved.IntraOpThreads)
+	recognizerSession, loadErr := runtime.LoadReader(resolved.RecognizerModel, contextReader{ctx: ctx, reader: recognizerModel}, resolved.IntraOpThreads, resolved.SessionConfig)
 	closeErr = recognizerModel.Close()
 	if loadErr != nil {
 		return failInitialization(runtime, fmt.Errorf("load recognizer: %w", loadErr))
@@ -346,6 +351,11 @@ func normalizeConfig(config Config) (Config, scrfd.DecoderConfig, error) {
 	}
 	if config.IntraOpThreads < 0 || !finite32(config.DetectionThreshold) || config.DetectionThreshold < 0 || config.DetectionThreshold > 1 || !finite32(config.NMSThreshold) || config.NMSThreshold < 0 || config.NMSThreshold > 1 {
 		return Config{}, scrfd.DecoderConfig{}, ErrInvalidConfig
+	}
+	for key, value := range config.SessionConfig {
+		if key == "" || value == "" {
+			return Config{}, scrfd.DecoderConfig{}, fmt.Errorf("session config entries require non-empty key and value: %w", ErrInvalidConfig)
+		}
 	}
 	decoder := scrfd.DecoderConfig{
 		InputWidth: config.DetectorInputWidth, InputHeight: config.DetectorInputHeight,

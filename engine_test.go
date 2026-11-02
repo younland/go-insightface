@@ -121,6 +121,22 @@ func TestNewFromFSRejectsNilContextAndSource(t *testing.T) {
 	}
 }
 
+func TestNewRejectsInvalidSessionConfig(t *testing.T) {
+	config := Config{
+		RuntimeLibrary:  "runtime",
+		DetectorModel:   "detector",
+		RecognizerModel: "recognizer",
+		SessionConfig:   map[string]string{"": "1"},
+	}
+	if _, err := New(config); !errors.Is(err, ErrInvalidConfig) {
+		t.Fatalf("New() error = %v, want ErrInvalidConfig", err)
+	}
+	config.SessionConfig = map[string]string{"session.intra_op.allow_spinning": ""}
+	if _, err := New(config); !errors.Is(err, ErrInvalidConfig) {
+		t.Fatalf("New() error = %v, want ErrInvalidConfig", err)
+	}
+}
+
 func TestNewFromFSRejectsInvalidFSPaths(t *testing.T) {
 	source, err := runtimefs.New(fstest.MapFS{}, t.TempDir())
 	if err != nil {

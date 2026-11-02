@@ -62,10 +62,39 @@ func TestSelectAutoProviders(t *testing.T) {
 	}
 }
 
+func TestMergeSessionConfig(t *testing.T) {
+	merged := mergeSessionConfig(nil)
+	if got := merged["session.intra_op.allow_spinning"]; got != "0" {
+		t.Fatalf("default allow_spinning = %q, want 0", got)
+	}
+
+	user := map[string]string{
+		"session.intra_op.allow_spinning": "1",
+		"session.inter_op.allow_spinning": "0",
+	}
+	merged = mergeSessionConfig(user)
+	if got := merged["session.intra_op.allow_spinning"]; got != "1" {
+		t.Fatalf("user override for default key = %q, want 1", got)
+	}
+	if got := merged["session.inter_op.allow_spinning"]; got != "0" {
+		t.Fatalf("user entry = %q, want 0", got)
+	}
+	if len(merged) != 2 {
+		t.Fatalf("merged config has %d entries, want 2", len(merged))
+	}
+
+	if got := DefaultSessionConfig["session.intra_op.allow_spinning"]; got != "0" {
+		t.Fatalf("DefaultSessionConfig mutated: allow_spinning = %q, want 0", got)
+	}
+	if got := user["session.intra_op.allow_spinning"]; got != "1" {
+		t.Fatalf("user config mutated: allow_spinning = %q, want 1", got)
+	}
+}
+
 func TestLoadReaderRejectsNilReader(t *testing.T) {
 	var runtime Runtime
 
-	_, err := runtime.LoadReader("fixture.onnx", nil, 1)
+	_, err := runtime.LoadReader("fixture.onnx", nil, 1, nil)
 	if err == nil {
 		t.Fatal("expected error")
 	}
@@ -76,7 +105,7 @@ func TestLoadReaderRejectsNilReader(t *testing.T) {
 
 func TestLoadReaderReturnsClosedError(t *testing.T) {
 	runtime := &Runtime{closed: true}
-	_, err := runtime.LoadReader("fixture.onnx", os.Stdin, 1)
+	_, err := runtime.LoadReader("fixture.onnx", os.Stdin, 1, nil)
 	if !errors.Is(err, ErrClosed) {
 		t.Fatalf("LoadReader() error = %v, want %v", err, ErrClosed)
 	}

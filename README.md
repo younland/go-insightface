@@ -135,6 +135,7 @@ func run() error {
 | `DetectionThreshold` | float32 | `0.5` | 检测得分阈值，取值 `[0,1]` |
 | `NMSThreshold` | float32 | `0.4` | NMS IoU 阈值，取值 `[0,1]` |
 | `IntraOpThreads` | int | ORT 默认 | 算子内并行线程数，`0` 用默认，不得为负 |
+| `SessionConfig` | map[string]string | 关闭 intra-op 自旋 | 追加 ONNX Runtime 会话配置项（经 `AddSessionConfigEntry` 应用），同名键覆盖默认项；默认注入 `session.intra_op.allow_spinning=0`（空闲时不占用 CPU），键与值均须非空 |
 
 `MatcherConfig` 字段：
 

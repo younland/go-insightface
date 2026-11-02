@@ -7,12 +7,36 @@ import (
 	"io"
 	"log"
 	"math"
+	"sort"
 	"sync"
 
 	upstream "github.com/younland/onnxruntime"
 )
 
 var ErrClosed = errors.New("onnx runtime resource is closed")
+
+// DefaultSessionConfig lists session configuration entries applied to every
+// session unless overridden through Load/LoadReader's sessionConfig argument.
+//
+// session.intra_op.allow_spinning=0 stops the intra-op thread pool from busy
+// waiting while idle, so sessions burn no CPU when no inference is running
+// (the trade-off is a wake-up delay on the order of microseconds).
+var DefaultSessionConfig = map[string]string{
+	"session.intra_op.allow_spinning": "0",
+}
+
+// mergeSessionConfig returns a copy of DefaultSessionConfig overlaid with the
+// caller's entries; a caller value for a default key replaces the default.
+func mergeSessionConfig(user map[string]string) map[string]string {
+	merged := make(map[string]string, len(DefaultSessionConfig)+len(user))
+	for key, value := range DefaultSessionConfig {
+		merged[key] = value
+	}
+	for key, value := range user {
+		merged[key] = value
+	}
+	return merged
+}
 
 type Tensor struct {
 	Name  string
@@ -75,18 +99,18 @@ func Open(libraryPath string) (*Runtime, error) {
 	return &Runtime{engine: engine}, nil
 }
 
-func (r *Runtime) Load(modelPath string, threads int) (*Session, error) {
+func (r *Runtime) Load(modelPath string, threads int, sessionConfig map[string]string) (*Session, error) {
 	if modelPath == "" {
 		return nil, errors.New("model path is empty")
 	}
-	return r.loadLocked(modelPath, threads, func(opts *upstream.SessionOptions) (*upstream.Session, error) {
+	return r.loadLocked(modelPath, threads, sessionConfig, func(opts *upstream.SessionOptions) (*upstream.Session, error) {
 		return r.engine.NewSession(modelPath, opts)
 	})
 }
 
 // LoadReader creates a session from an ONNX model stream.
 // modelLabel is used only for error context.
-func (r *Runtime) LoadReader(modelLabel string, modelReader io.Reader, threads int) (*Session, error) {
+func (r *Runtime) LoadReader(modelLabel string, modelReader io.Reader, threads int, sessionConfig map[string]string) (*Session, error) {
 	if modelReader == nil {
 		return nil, errors.New("model reader is nil")
 	}
@@ -97,7 +121,7 @@ func (r *Runtime) LoadReader(modelLabel string, modelReader io.Reader, threads i
 	if err != nil {
 		return nil, fmt.Errorf("read ONNX model %q: %w", modelLabel, err)
 	}
-	return r.loadLocked(modelLabel, threads, func(opts *upstream.SessionOptions) (*upstream.Session, error) {
+	return r.loadLocked(modelLabel, threads, sessionConfig, func(opts *upstream.SessionOptions) (*upstream.Session, error) {
 		return r.engine.NewSessionFromBytes(modelData, opts)
 	})
 }
@@ -136,17 +160,17 @@ func (r *Runtime) AvailableProviders() []string {
 	return append([]string(nil), r.engine.GetAvailableProviders()...)
 }
 
-func (r *Runtime) loadLocked(modelLabel string, threads int, load func(opts *upstream.SessionOptions) (*upstream.Session, error)) (*Session, error) {
+func (r *Runtime) loadLocked(modelLabel string, threads int, sessionConfig map[string]string, load func(opts *upstream.SessionOptions) (*upstream.Session, error)) (*Session, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	if r.closed || r.engine == nil {
 		return nil, ErrClosed
 	}
 	providers := selectAutoProviders(r.engine.GetAvailableProviders())
-	session, err := r.newSessionLocked(modelLabel, threads, providers, load)
+	session, err := r.newSessionLocked(modelLabel, threads, sessionConfig, providers, load)
 	if err != nil && len(providers) > 0 {
 		log.Printf("[go-insightface] onnxruntime: load %q with providers %v failed: %v; falling back to CPU", modelLabel, providers, err)
-		session, err = r.newSessionLocked(modelLabel, threads, nil, load)
+		session, err = r.newSessionLocked(modelLabel, threads, sessionConfig, nil, load)
 	}
 	if err != nil {
 		return nil, err
@@ -166,10 +190,11 @@ func (r *Runtime) loadLocked(modelLabel string, threads int, load func(opts *ups
 	return wrapped, nil
 }
 
-// newSessionLocked creates a session with the given GPU providers enabled (nil
-// for CPU only) and returns it unwrapped. On error the partially created session
-// is released and the error carries the model label context.
-func (r *Runtime) newSessionLocked(modelLabel string, threads int, providers []string, load func(opts *upstream.SessionOptions) (*upstream.Session, error)) (*upstream.Session, error) {
+// newSessionLocked creates a session with the merged session config applied and
+// the given GPU providers enabled (nil for CPU only), returning it unwrapped.
+// On error the partially created session is released and the error carries the
+// model label context.
+func (r *Runtime) newSessionLocked(modelLabel string, threads int, sessionConfig map[string]string, providers []string, load func(opts *upstream.SessionOptions) (*upstream.Session, error)) (*upstream.Session, error) {
 	opts, err := r.engine.NewSessionOptions()
 	if err != nil {
 		return nil, fmt.Errorf("create session options for %q: %w", modelLabel, err)
@@ -178,6 +203,17 @@ func (r *Runtime) newSessionLocked(modelLabel string, threads int, providers []s
 	if threads > 0 {
 		if err := opts.SetIntraOpNumThreads(int32(threads)); err != nil {
 			return nil, fmt.Errorf("configure session options for %q: %w", modelLabel, err)
+		}
+	}
+	entries := mergeSessionConfig(sessionConfig)
+	keys := make([]string, 0, len(entries))
+	for key := range entries {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	for _, key := range keys {
+		if err := opts.AddConfigEntry(key, entries[key]); err != nil {
+			return nil, fmt.Errorf("set session config %q for %q: %w", key, modelLabel, err)
 		}
 	}
 	for _, provider := range providers {
