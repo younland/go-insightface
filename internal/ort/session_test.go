@@ -33,6 +33,35 @@ func TestElementCountRejectsOverflow(t *testing.T) {
 	}
 }
 
+func TestSelectAutoProviders(t *testing.T) {
+	tests := []struct {
+		name      string
+		available []string
+		want      []string
+	}{
+		{name: "nil", available: nil, want: nil},
+		{name: "cpu only", available: []string{"CPUExecutionProvider"}, want: nil},
+		{name: "cuda", available: []string{"CPUExecutionProvider", "CUDAExecutionProvider"}, want: []string{"CUDAExecutionProvider"}},
+		{name: "tensorrt and cuda", available: []string{"CPUExecutionProvider", "CUDAExecutionProvider", "TensorrtExecutionProvider"}, want: []string{"TensorrtExecutionProvider", "CUDAExecutionProvider"}},
+		{name: "tensorrt only", available: []string{"TensorrtExecutionProvider", "CPUExecutionProvider"}, want: []string{"TensorrtExecutionProvider"}},
+		{name: "case sensitive", available: []string{"cudaexecutionprovider"}, want: nil},
+		{name: "unknown provider ignored", available: []string{"CPUExecutionProvider", "OpenVINOExecutionProvider"}, want: nil},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := selectAutoProviders(tt.available)
+			if len(got) != len(tt.want) {
+				t.Fatalf("selectAutoProviders(%v) = %v, want %v", tt.available, got, tt.want)
+			}
+			for i := range got {
+				if got[i] != tt.want[i] {
+					t.Fatalf("selectAutoProviders(%v) = %v, want %v", tt.available, got, tt.want)
+				}
+			}
+		})
+	}
+}
+
 func TestLoadReaderRejectsNilReader(t *testing.T) {
 	var runtime Runtime
 

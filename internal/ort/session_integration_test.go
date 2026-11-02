@@ -30,6 +30,8 @@ func TestRuntimeExecutesONNXModel(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	t.Logf("available providers: %v", runtime.AvailableProviders())
+	t.Logf("session providers: %v", session.Providers())
 	outputs, err := session.Run(context.Background(), []float32{1, 2, 3, 4, 5, 6, 7, 8, 9, 10}, []int64{1, 10})
 	if err != nil {
 		t.Fatal(err)
