@@ -72,12 +72,17 @@ declare all runtime fields:
 Run it directly or from a build step:
 
 ```bash
-go run github.com/lib-x/go-insightface/cmd/insightface-assets@v0.2.0 \
+go run github.com/younland/go-insightface/cmd/insightface-assets \
   -manifest insightface-assets.json \
   -output ./faceassets/files \
   -cache /var/cache/my-product/face-assets \
   -timeout 30m
 ```
+
+The command resolves through the calling module's `go.mod`; tag-pinned
+`@version` execution requires a tag published after the module was renamed to
+`github.com/younland/go-insightface` (older tags use the historical
+`github.com/lib-x/go-insightface` module path).
 
 `-os` and `-arch` select a cross-build target. The command prints the three
 resolved output paths as JSON. `-output` is an exclusively managed directory;
@@ -110,7 +115,7 @@ package faceassets
 
 import "embed"
 
-//go:generate go run github.com/lib-x/go-insightface/cmd/insightface-assets@v0.2.0 -manifest ../insightface-assets.json -output files
+//go:generate go run github.com/younland/go-insightface/cmd/insightface-assets -manifest ../insightface-assets.json -output files
 
 //go:embed files
 var Files embed.FS

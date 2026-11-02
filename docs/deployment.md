@@ -2,15 +2,22 @@
 
 ## Runtime
 
-The current backend is pinned to
-`github.com/shota3506/onnxruntime-purego` commit
-`8db8bd7424b218de9ca0ebd894da8e86f5dc7983`. It requires Go 1.25 or newer
-and ONNX Runtime 1.23.x (API 23). Supply an explicit shared-library path at
+The current backend depends on
+`github.com/younland/onnxruntime`, pinned in `go.mod`. It requires Go 1.27
+or newer and negotiates the C API with ONNX Runtime 1.23 through 1.31 at
+startup. Supply an explicit shared-library path at
 startup, or opt into the build/download and caller-embedding mechanisms in
-[asset provisioning](assets.md). CPU inference is the supported execution
-path in the first release.
+[asset provisioning](assets.md).
 
-The upstream wrapper is pre-release and its API is unstable. It is isolated
+Execution providers are selected automatically: on every session load the
+adapter queries the library's available providers and enables TensorRT
+first, then CUDA (using the V2 provider-options API, default settings), so
+GPU builds use maximum compute without configuration. If session creation
+with GPU providers fails (for example a GPU build without CUDA drivers), the
+adapter logs the failure and retries on CPU; CPU-only builds are unaffected.
+Use a CPU build of ONNX Runtime to force CPU inference.
+
+The upstream wrapper is untagged and its API is unstable. It is isolated
 behind `internal/ort`; applications should use only this module's public API.
 Request cancellation is checked before and after native inference, but ONNX
 Runtime execution itself cannot currently be interrupted through the upstream

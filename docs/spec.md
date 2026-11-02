@@ -2,15 +2,15 @@
 
 ## Objective
 
-Build a production-oriented Go inference library for InsightFace-compatible ONNX models without CGO or OpenCV. The library will load ONNX Runtime through `onnxruntime-purego`, detect and align faces, produce normalized embeddings, and provide exact identity-level search suitable for galleries of at least 3,000 identities.
+Build a production-oriented Go inference library for InsightFace-compatible ONNX models without CGO or OpenCV. The library will load ONNX Runtime through `github.com/younland/onnxruntime`, detect and align faces, produce normalized embeddings, and provide exact identity-level search suitable for galleries of at least 3,000 identities.
 
 The library is model-file agnostic: it does not redistribute InsightFace model weights. Applications are responsible for supplying models with suitable licenses.
 
 ## Tech Stack
 
-- Go 1.25 or newer.
-- `github.com/shota3506/onnxruntime-purego` pinned to commit `8db8bd7424b218de9ca0ebd894da8e86f5dc7983`.
-- ONNX Runtime 1.23.x shared library, CPU execution provider in v0.1.
+- Go 1.27 or newer.
+- `github.com/younland/onnxruntime`, pinned in `go.mod`.
+- ONNX Runtime 1.23 through 1.31 shared library (version negotiated at startup), CPU execution provider in v0.1.
 - Go standard image packages plus `golang.org/x/image/draw` for deterministic resizing.
 - No CGO, OpenCV, database, HTTP server, or bundled model weights.
 
@@ -112,4 +112,4 @@ func (e *Engine) Analyze(ctx context.Context, src image.Image) ([]Face, error) {
 
 - Production model license and exact detector/recognizer fingerprints must be selected by the deployer.
 - ARM64 end-to-end latency requires target hardware; CI can only validate build and pure processing until hardware is available.
-- `onnxruntime-purego` is currently unstable and untagged, so the adapter boundary may need a maintained `lib-x` fork if upstream changes or stalls.
+- `github.com/younland/onnxruntime` is currently untagged, so the adapter boundary may need a maintained `lib-x` fork if upstream changes or stalls.

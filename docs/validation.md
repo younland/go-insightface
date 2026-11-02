@@ -27,7 +27,29 @@ The release ZIP passed a full CRC test before the models were loaded. The
 officially distributed weights are described by InsightFace as non-commercial
 research models; they are not distributed by this repository.
 
-## Results
+## Runtime adapter migration
+
+- Date: 2026-11-02
+- Platform: Windows AMD64
+- Go: 1.27.3 (module minimum: Go 1.27)
+- Runtime adapter: `github.com/younland/onnxruntime`, pinned in `go.mod`
+
+The ONNX Runtime binding was migrated from
+`github.com/shota3506/onnxruntime-purego` (which did not compile on Windows)
+to `github.com/younland/onnxruntime`. The new adapter negotiates the OrtApi
+table with the loaded library at startup (supported range 1.23 through 1.31).
+
+Re-validation results:
+
+- `go build ./...`, `go vet ./...`, and the pure-Go unit suite pass on
+  Windows AMD64.
+- `TestRuntimeExecutesONNXModel` passed against the official CPU builds of
+  both ONNX Runtime 1.23.2 (negotiated API 23, the minimum) and 1.31.1
+  (negotiated API 31), loading the model through the reader/bytes path.
+- The previous Linux validation results below were recorded against the old
+  adapter and remain the reference for model-level accuracy.
+
+## Original validation record (2026-08-04, old adapter)
 
 - The upstream tiny ONNX fixture loaded and ran through the pure-Go adapter.
 - SCRFD and ArcFace ran end-to-end on an external 512x512 face image.
