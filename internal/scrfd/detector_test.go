@@ -7,7 +7,7 @@ import (
 	"image/color"
 	"testing"
 
-	"github.com/lib-x/go-insightface/internal/ort"
+	"github.com/younland/go-insightface/internal/ort"
 )
 
 type recordingSession struct {

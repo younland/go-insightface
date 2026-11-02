@@ -9,9 +9,9 @@ import (
 	"testing/fstest"
 	"time"
 
-	"github.com/lib-x/go-insightface/internal/imageutil"
-	"github.com/lib-x/go-insightface/internal/scrfd"
-	"github.com/lib-x/go-insightface/runtimefs"
+	"github.com/younland/go-insightface/internal/imageutil"
+	"github.com/younland/go-insightface/internal/scrfd"
+	"github.com/younland/go-insightface/runtimefs"
 )
 
 func TestNormalizeConfigAppliesDefaults(t *testing.T) {

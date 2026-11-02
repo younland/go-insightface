@@ -15,7 +15,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/lib-x/go-insightface/assets"
+	"github.com/younland/go-insightface/assets"
 )
 
 const (

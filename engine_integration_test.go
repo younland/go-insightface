@@ -14,7 +14,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/lib-x/go-insightface/runtimefs"
+	"github.com/younland/go-insightface/runtimefs"
 )
 
 func TestEngineRunsLicensedExternalModels(t *testing.T) {

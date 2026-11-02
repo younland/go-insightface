@@ -8,8 +8,8 @@ import (
 	"math"
 	"testing"
 
-	"github.com/lib-x/go-insightface/internal/imageutil"
-	"github.com/lib-x/go-insightface/internal/ort"
+	"github.com/younland/go-insightface/internal/imageutil"
+	"github.com/younland/go-insightface/internal/ort"
 )
 
 func TestEmbedderEmbedAlignsPreprocessesAndNormalizes(t *testing.T) {

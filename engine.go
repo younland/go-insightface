@@ -11,11 +11,11 @@ import (
 	"reflect"
 	"sync"
 
-	"github.com/lib-x/go-insightface/internal/arcface"
-	"github.com/lib-x/go-insightface/internal/imageutil"
-	"github.com/lib-x/go-insightface/internal/ort"
-	"github.com/lib-x/go-insightface/internal/scrfd"
-	"github.com/lib-x/go-insightface/runtimefs"
+	"github.com/younland/go-insightface/internal/arcface"
+	"github.com/younland/go-insightface/internal/imageutil"
+	"github.com/younland/go-insightface/internal/ort"
+	"github.com/younland/go-insightface/internal/scrfd"
+	"github.com/younland/go-insightface/runtimefs"
 )
 
 const (
