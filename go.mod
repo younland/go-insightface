@@ -3,7 +3,7 @@ module github.com/younland/go-insightface
 go 1.27.2
 
 require (
-	github.com/younland/onnxruntime v0.0.0-20261030082323-8fa9dc98ecfe
+	github.com/younland/onnxruntime v0.0.0-20261102164213-46312a60ae87
 	golang.org/x/image v0.30.0
 )
 

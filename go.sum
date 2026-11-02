@@ -1,6 +1,6 @@
 github.com/ebitengine/purego v0.11.1 h1:2zpWRSQNVKN4eKsKO9eM1ILDgWfYMY9GwqRmK6XeQ/0=
 github.com/ebitengine/purego v0.11.1/go.mod h1:DCHPP08djqhNSoTfImcnHYQRZmd0qhakvrozqaEYhGQ=
-github.com/younland/onnxruntime v0.0.0-20261030082323-8fa9dc98ecfe h1:rWdA3rEhT0k7W1JOIBoqIsbGinvkVjvMc7L6/BpKYVQ=
-github.com/younland/onnxruntime v0.0.0-20261030082323-8fa9dc98ecfe/go.mod h1:sSoZMO1ek4rD1ECK7NfTTQL5Nw7btJYtPYThs6ySnoE=
+github.com/younland/onnxruntime v0.0.0-20261102164213-46312a60ae87 h1:39fvmiMumAM/GBk+0LKqkDItcWmxVZQBVd/jsp6LSN8=
+github.com/younland/onnxruntime v0.0.0-20261102164213-46312a60ae87/go.mod h1:sSoZMO1ek4rD1ECK7NfTTQL5Nw7btJYtPYThs6ySnoE=
 golang.org/x/image v0.30.0 h1:jD5RhkmVAnjqaCUXfbGBrn3lpxbknfN9w2UhHHU+5B4=
 golang.org/x/image v0.30.0/go.mod h1:SAEUTxCCMWSrJcCy/4HwavEsfZZJlYxeHLc6tTiAe/c=
