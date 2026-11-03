@@ -115,6 +115,11 @@ type SessionParams struct {
 	// TensorRT are TensorrtExecutionProvider options applied when the provider
 	// is auto-enabled; nil selects the provider defaults.
 	TensorRT map[string]string
+	// Providers overrides the automatic provider selection: nil selects the
+	// default order (CUDA first, then TensorRT); an explicit list enables
+	// exactly those providers in the given order and every name must be
+	// available in the loaded library; an empty non-nil slice forces CPU only.
+	Providers []string
 }
 
 func (r *Runtime) Load(modelPath string, params SessionParams) (*Session, error) {
@@ -144,14 +149,51 @@ func (r *Runtime) LoadReader(modelLabel string, modelReader io.Reader, params Se
 	})
 }
 
-// autoProviderOrder lists GPU execution providers by preference: TensorRT first
-// (fastest on NVIDIA hardware), then CUDA as fallback. CPU is always present and
-// needs no enable call, so it is never part of the auto-selection result.
-var autoProviderOrder = []string{upstream.ProviderTensorRT, upstream.ProviderCUDA}
+// autoProviderOrder lists GPU execution providers by default preference: CUDA
+// first (broadest operator coverage), then TensorRT as fallback. CPU is always
+// present and needs no enable call, so it is never part of the selection result.
+var autoProviderOrder = []string{upstream.ProviderCUDA, upstream.ProviderTensorRT}
 
-// selectAutoProviders returns the GPU providers from available, best first.
-// Matching is exact and case-sensitive, mirroring the names returned by the
-// ONNX Runtime OrtGetAvailableProviders.
+// gpuProviders maps the provider names this adapter knows how to enable to
+// their auto-order rank for validation and sorting.
+var gpuProviders = map[string]bool{
+	upstream.ProviderCUDA:     true,
+	upstream.ProviderTensorRT: true,
+}
+
+// selectProviders returns the GPU providers to enable, best first. A nil
+// preference uses autoProviderOrder (CUDA first, then TensorRT). An explicit
+// preference is strict: every name must be a known GPU provider and present in
+// available, otherwise an error is returned instead of silently degrading.
+func selectProviders(available []string, preference []string) ([]string, error) {
+	if preference == nil {
+		return selectAutoProviders(available), nil
+	}
+	present := make(map[string]bool, len(available))
+	for _, name := range available {
+		present[name] = true
+	}
+	seen := make(map[string]bool, len(preference))
+	selected := make([]string, 0, len(preference))
+	for _, name := range preference {
+		if !gpuProviders[name] {
+			return nil, fmt.Errorf("unsupported execution provider %q: adapter can enable %q or %q", name, upstream.ProviderCUDA, upstream.ProviderTensorRT)
+		}
+		if seen[name] {
+			return nil, fmt.Errorf("duplicate execution provider %q", name)
+		}
+		seen[name] = true
+		if !present[name] {
+			return nil, fmt.Errorf("execution provider %q is not offered by the loaded ONNX Runtime library", name)
+		}
+		selected = append(selected, name)
+	}
+	return selected, nil
+}
+
+// selectAutoProviders returns the GPU providers from available in default
+// preference order. Matching is exact and case-sensitive, mirroring the names
+// returned by the ONNX Runtime OrtGetAvailableProviders.
 func selectAutoProviders(available []string) []string {
 	present := make(map[string]bool, len(available))
 	for _, name := range available {
@@ -184,7 +226,10 @@ func (r *Runtime) loadLocked(modelLabel string, params SessionParams, load func(
 	if r.closed || r.engine == nil {
 		return nil, ErrClosed
 	}
-	providers := selectAutoProviders(r.engine.GetAvailableProviders())
+	providers, err := selectProviders(r.engine.GetAvailableProviders(), params.Providers)
+	if err != nil {
+		return nil, fmt.Errorf("load ONNX model %q: %w", modelLabel, err)
+	}
 	session, err := r.newSessionLocked(modelLabel, params, providers, load)
 	if err != nil && len(providers) > 0 {
 		log.Printf("[go-insightface] onnxruntime: load %q with providers %v failed: %v; falling back to CPU", modelLabel, providers, err)

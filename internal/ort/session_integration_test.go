@@ -40,3 +40,23 @@ func TestRuntimeExecutesONNXModel(t *testing.T) {
 		t.Fatalf("outputs = %+v, want one 3-value tensor", outputs)
 	}
 }
+
+func TestRuntimeRejectsForcedProviderThatIsUnavailable(t *testing.T) {
+	library := os.Getenv("ORT_LIBRARY")
+	model := os.Getenv("ORT_TEST_MODEL")
+	if library == "" || model == "" {
+		t.Skip("ORT_LIBRARY and ORT_TEST_MODEL are required")
+	}
+	runtime, err := Open(library)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer runtime.Close()
+
+	forceTensorRT := SessionParams{Providers: []string{"TensorrtExecutionProvider"}}
+	if _, err := runtime.Load(model, forceTensorRT); err == nil {
+		t.Fatal("expected error when forcing an unavailable provider")
+	} else {
+		t.Logf("forced unavailable provider error: %v", err)
+	}
+}

@@ -59,6 +59,14 @@ type Config struct {
 	// TensorRTOptions lists TensorrtExecutionProvider options used when the
 	// provider is auto-enabled; nil selects the provider defaults.
 	TensorRTOptions map[string]string
+	// ExecutionProviders overrides the automatic provider selection: nil
+	// enables available GPU providers in the default order (CUDA first, then
+	// TensorRT as fallback); an explicit list enables exactly those providers
+	// in the given order, for example ["TensorrtExecutionProvider"] forces
+	// TensorRT. Only CUDAExecutionProvider and TensorrtExecutionProvider are
+	// accepted, every listed provider must be offered by the loaded library,
+	// and an empty non-nil slice forces CPU only.
+	ExecutionProviders []string
 }
 
 type Point struct {
@@ -120,10 +128,11 @@ func New(config Config) (*Engine, error) {
 		return nil, fmt.Errorf("%w: open ONNX Runtime: %v", ErrInitialization, err)
 	}
 	params := ort.SessionParams{
-		Threads:  resolved.IntraOpThreads,
-		Entries:  resolved.SessionConfig,
-		CUDA:     resolved.CUDAOptions,
-		TensorRT: resolved.TensorRTOptions,
+		Threads:   resolved.IntraOpThreads,
+		Entries:   resolved.SessionConfig,
+		CUDA:      resolved.CUDAOptions,
+		TensorRT:  resolved.TensorRTOptions,
+		Providers: resolved.ExecutionProviders,
 	}
 	detectorSession, err := runtime.Load(resolved.DetectorModel, params)
 	if err != nil {
@@ -171,10 +180,11 @@ func NewFromFS(ctx context.Context, config Config, source runtimefs.FS) (*Engine
 	}
 
 	params := ort.SessionParams{
-		Threads:  resolved.IntraOpThreads,
-		Entries:  resolved.SessionConfig,
-		CUDA:     resolved.CUDAOptions,
-		TensorRT: resolved.TensorRTOptions,
+		Threads:   resolved.IntraOpThreads,
+		Entries:   resolved.SessionConfig,
+		CUDA:      resolved.CUDAOptions,
+		TensorRT:  resolved.TensorRTOptions,
+		Providers: resolved.ExecutionProviders,
 	}
 	detectorModel, err := source.Open(resolved.DetectorModel)
 	if err != nil {

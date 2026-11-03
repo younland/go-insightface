@@ -34,7 +34,7 @@
 
 ### ⚡ Execution Provider 自动启用
 
-每次加载会话时查询库的可用 provider 列表，按 **TensorRT → CUDA** 优先级自动挂载（V2 provider-options API，默认参数），失败时记录日志并回退 CPU；CPU 构建零配置直接可用。SDK 不暴露 provider 配置项，GPU 用法完全自动。
+每次加载会话时查询库的可用 provider 列表，自动按 **CUDA 优先**挂载、TensorRT 兜底（V2 provider-options API，默认参数），失败时记录日志并回退 CPU；CPU 构建零配置直接可用。`Config.ExecutionProviders` 可强制指定顺序或单独强制 TensorRT，SDK 不暴露其余 provider 配置项。
 
 ### 🖥️ SCRFD + ArcFace 全流水线
 
@@ -138,6 +138,7 @@ func run() error {
 | `SessionConfig` | map[string]string | 关闭 intra-op 自旋 | 追加 ONNX Runtime 会话配置项（经 `AddSessionConfigEntry` 应用），同名键覆盖默认项；默认注入 `session.intra_op.allow_spinning=0`（空闲时不占用 CPU），键与值均须非空 |
 | `CUDAOptions` | map[string]string | provider 默认 | CUDAExecutionProvider 选项（`device_id`、`cudnn_conv_algo_search`、`gpu_mem_limit`、`arena_extend_strategy` 等），provider 被自动启用时生效；键与值均须非空 |
 | `TensorRTOptions` | map[string]string | provider 默认 | TensorrtExecutionProvider 选项，provider 被自动启用时生效；键与值均须非空 |
+| `ExecutionProviders` | []string | 自动（CUDA 优先，TensorRT 兜底） | 覆盖自动选择：显式列表按给定顺序启用（如 `["TensorrtExecutionProvider"]` 强制 TensorRT）；仅接受 CUDA/TensorRT 名称且必须在当前库可用列表中，否则初始化报错；空非 nil 切片强制纯 CPU |
 
 `MatcherConfig` 字段：
 
@@ -249,8 +250,9 @@ func newEngine(ctx context.Context) (*insightface.Engine, error) {
 | 场景 | 行为 |
 | --- | --- |
 | CPU 构建 | 零配置直接可用，基线路径 |
-| GPU 构建（含 TensorRT/CUDA EP） | 自动按 TensorRT → CUDA 挂载，最大化算力 |
+| GPU 构建（含 TensorRT/CUDA EP） | 自动按 CUDA 优先挂载，TensorRT 兜底；`Config.ExecutionProviders` 可强制指定顺序或单独强制 TensorRT |
 | GPU 挂载失败（缺驱动/CUDA 运行库） | 记录日志，自动回退 CPU 重建会话 |
+| 显式指定的 provider 不在库的可用列表中 | 初始化报错，不静默降级 |
 | 其他 provider（如 Azure EP） | 不在自动名单内，忽略 |
 
 启用 GPU 后会话加载日志会输出实际使用的 provider 列表；强制 CPU 推理请使用 CPU 构建的 ONNX Runtime。

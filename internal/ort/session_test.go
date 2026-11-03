@@ -42,7 +42,7 @@ func TestSelectAutoProviders(t *testing.T) {
 		{name: "nil", available: nil, want: nil},
 		{name: "cpu only", available: []string{"CPUExecutionProvider"}, want: nil},
 		{name: "cuda", available: []string{"CPUExecutionProvider", "CUDAExecutionProvider"}, want: []string{"CUDAExecutionProvider"}},
-		{name: "tensorrt and cuda", available: []string{"CPUExecutionProvider", "CUDAExecutionProvider", "TensorrtExecutionProvider"}, want: []string{"TensorrtExecutionProvider", "CUDAExecutionProvider"}},
+		{name: "cuda and tensorrt default order", available: []string{"CPUExecutionProvider", "CUDAExecutionProvider", "TensorrtExecutionProvider"}, want: []string{"CUDAExecutionProvider", "TensorrtExecutionProvider"}},
 		{name: "tensorrt only", available: []string{"TensorrtExecutionProvider", "CPUExecutionProvider"}, want: []string{"TensorrtExecutionProvider"}},
 		{name: "case sensitive", available: []string{"cudaexecutionprovider"}, want: nil},
 		{name: "unknown provider ignored", available: []string{"CPUExecutionProvider", "OpenVINOExecutionProvider"}, want: nil},
@@ -88,6 +88,69 @@ func TestMergeSessionConfig(t *testing.T) {
 	}
 	if got := user["session.intra_op.allow_spinning"]; got != "1" {
 		t.Fatalf("user config mutated: allow_spinning = %q, want 1", got)
+	}
+}
+
+func TestSelectProviders(t *testing.T) {
+	available := []string{"CPUExecutionProvider", "CUDAExecutionProvider", "TensorrtExecutionProvider"}
+
+	t.Run("nil preference uses default order", func(t *testing.T) {
+		got, err := selectProviders(available, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		want := []string{"CUDAExecutionProvider", "TensorrtExecutionProvider"}
+		if len(got) != len(want) || got[0] != want[0] || got[1] != want[1] {
+			t.Fatalf("selectProviders() = %v, want %v", got, want)
+		}
+	})
+
+	t.Run("explicit order honored", func(t *testing.T) {
+		got, err := selectProviders(available, []string{"TensorrtExecutionProvider", "CUDAExecutionProvider"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		want := []string{"TensorrtExecutionProvider", "CUDAExecutionProvider"}
+		if len(got) != len(want) || got[0] != want[0] || got[1] != want[1] {
+			t.Fatalf("selectProviders() = %v, want %v", got, want)
+		}
+	})
+
+	t.Run("force tensorrt", func(t *testing.T) {
+		got, err := selectProviders(available, []string{"TensorrtExecutionProvider"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(got) != 1 || got[0] != "TensorrtExecutionProvider" {
+			t.Fatalf("selectProviders() = %v, want [TensorrtExecutionProvider]", got)
+		}
+	})
+
+	t.Run("empty non-nil forces cpu", func(t *testing.T) {
+		got, err := selectProviders(available, []string{})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(got) != 0 {
+			t.Fatalf("selectProviders() = %v, want empty", got)
+		}
+	})
+
+	errorCases := []struct {
+		name       string
+		preference []string
+	}{
+		{name: "unknown provider", preference: []string{"OpenVINOExecutionProvider"}},
+		{name: "duplicate", preference: []string{"CUDAExecutionProvider", "CUDAExecutionProvider"}},
+		{name: "not available", preference: []string{"TensorrtExecutionProvider"}},
+	}
+	limited := []string{"CPUExecutionProvider", "CUDAExecutionProvider"}
+	for _, tt := range errorCases {
+		t.Run(tt.name, func(t *testing.T) {
+			if _, err := selectProviders(limited, tt.preference); err == nil {
+				t.Fatal("expected error")
+			}
+		})
 	}
 }
 
