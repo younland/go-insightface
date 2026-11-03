@@ -52,6 +52,13 @@ type Config struct {
 	// defaults, so a key like "session.intra_op.allow_spinning" can be
 	// re-enabled by setting it here. Keys and values must be non-empty.
 	SessionConfig map[string]string
+	// CUDAOptions lists CUDAExecutionProvider options used when the provider
+	// is auto-enabled (device_id, cudnn_conv_algo_search, gpu_mem_limit,
+	// arena_extend_strategy, ...); nil selects the provider defaults.
+	CUDAOptions map[string]string
+	// TensorRTOptions lists TensorrtExecutionProvider options used when the
+	// provider is auto-enabled; nil selects the provider defaults.
+	TensorRTOptions map[string]string
 }
 
 type Point struct {
@@ -112,11 +119,17 @@ func New(config Config) (*Engine, error) {
 	if err != nil {
 		return nil, fmt.Errorf("%w: open ONNX Runtime: %v", ErrInitialization, err)
 	}
-	detectorSession, err := runtime.Load(resolved.DetectorModel, resolved.IntraOpThreads, resolved.SessionConfig)
+	params := ort.SessionParams{
+		Threads:  resolved.IntraOpThreads,
+		Entries:  resolved.SessionConfig,
+		CUDA:     resolved.CUDAOptions,
+		TensorRT: resolved.TensorRTOptions,
+	}
+	detectorSession, err := runtime.Load(resolved.DetectorModel, params)
 	if err != nil {
 		return failInitialization(runtime, fmt.Errorf("load detector: %w", err))
 	}
-	recognizerSession, err := runtime.Load(resolved.RecognizerModel, resolved.IntraOpThreads, resolved.SessionConfig)
+	recognizerSession, err := runtime.Load(resolved.RecognizerModel, params)
 	if err != nil {
 		return failInitialization(runtime, fmt.Errorf("load recognizer: %w", err))
 	}
@@ -157,11 +170,17 @@ func NewFromFS(ctx context.Context, config Config, source runtimefs.FS) (*Engine
 		return nil, fmt.Errorf("%w: open ONNX Runtime: %v", ErrInitialization, err)
 	}
 
+	params := ort.SessionParams{
+		Threads:  resolved.IntraOpThreads,
+		Entries:  resolved.SessionConfig,
+		CUDA:     resolved.CUDAOptions,
+		TensorRT: resolved.TensorRTOptions,
+	}
 	detectorModel, err := source.Open(resolved.DetectorModel)
 	if err != nil {
 		return failInitialization(runtime, fmt.Errorf("open detector model: %w", err))
 	}
-	detectorSession, loadErr := runtime.LoadReader(resolved.DetectorModel, contextReader{ctx: ctx, reader: detectorModel}, resolved.IntraOpThreads, resolved.SessionConfig)
+	detectorSession, loadErr := runtime.LoadReader(resolved.DetectorModel, contextReader{ctx: ctx, reader: detectorModel}, params)
 	closeErr := detectorModel.Close()
 	if loadErr != nil {
 		return failInitialization(runtime, fmt.Errorf("load detector: %w", loadErr))
@@ -178,7 +197,7 @@ func NewFromFS(ctx context.Context, config Config, source runtimefs.FS) (*Engine
 	if err != nil {
 		return failInitialization(runtime, fmt.Errorf("open recognizer model: %w", err))
 	}
-	recognizerSession, loadErr := runtime.LoadReader(resolved.RecognizerModel, contextReader{ctx: ctx, reader: recognizerModel}, resolved.IntraOpThreads, resolved.SessionConfig)
+	recognizerSession, loadErr := runtime.LoadReader(resolved.RecognizerModel, contextReader{ctx: ctx, reader: recognizerModel}, params)
 	closeErr = recognizerModel.Close()
 	if loadErr != nil {
 		return failInitialization(runtime, fmt.Errorf("load recognizer: %w", loadErr))
@@ -355,6 +374,13 @@ func normalizeConfig(config Config) (Config, scrfd.DecoderConfig, error) {
 	for key, value := range config.SessionConfig {
 		if key == "" || value == "" {
 			return Config{}, scrfd.DecoderConfig{}, fmt.Errorf("session config entries require non-empty key and value: %w", ErrInvalidConfig)
+		}
+	}
+	for _, options := range []map[string]string{config.CUDAOptions, config.TensorRTOptions} {
+		for key, value := range options {
+			if key == "" || value == "" {
+				return Config{}, scrfd.DecoderConfig{}, fmt.Errorf("provider option entries require non-empty key and value: %w", ErrInvalidConfig)
+			}
 		}
 	}
 	decoder := scrfd.DecoderConfig{

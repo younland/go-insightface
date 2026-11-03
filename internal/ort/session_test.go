@@ -94,7 +94,7 @@ func TestMergeSessionConfig(t *testing.T) {
 func TestLoadReaderRejectsNilReader(t *testing.T) {
 	var runtime Runtime
 
-	_, err := runtime.LoadReader("fixture.onnx", nil, 1, nil)
+	_, err := runtime.LoadReader("fixture.onnx", nil, SessionParams{})
 	if err == nil {
 		t.Fatal("expected error")
 	}
@@ -105,7 +105,7 @@ func TestLoadReaderRejectsNilReader(t *testing.T) {
 
 func TestLoadReaderReturnsClosedError(t *testing.T) {
 	runtime := &Runtime{closed: true}
-	_, err := runtime.LoadReader("fixture.onnx", os.Stdin, 1, nil)
+	_, err := runtime.LoadReader("fixture.onnx", os.Stdin, SessionParams{})
 	if !errors.Is(err, ErrClosed) {
 		t.Fatalf("LoadReader() error = %v, want %v", err, ErrClosed)
 	}

@@ -21,6 +21,9 @@ Sessions are created with `session.intra_op.allow_spinning=0` by default so
 idle sessions do not keep the intra-op thread pool spinning on a CPU core.
 `Config.SessionConfig` passes additional session configuration entries
 through `AddSessionConfigEntry`; caller entries override defaults per key.
+`Config.CUDAOptions` and `Config.TensorRTOptions` pass execution-provider
+options (for example `device_id` or `gpu_mem_limit`) through the V2
+provider-options API whenever the corresponding provider is auto-enabled.
 
 The upstream wrapper is untagged and its API is unstable. It is isolated
 behind `internal/ort`; applications should use only this module's public API.

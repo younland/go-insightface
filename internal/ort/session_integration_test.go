@@ -26,7 +26,7 @@ func TestRuntimeExecutesONNXModel(t *testing.T) {
 	}
 	defer modelFile.Close()
 
-	session, err := runtime.LoadReader(model, modelFile, 1, nil)
+	session, err := runtime.LoadReader(model, modelFile, SessionParams{Threads: 1})
 	if err != nil {
 		t.Fatal(err)
 	}

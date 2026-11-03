@@ -135,6 +135,16 @@ func TestNewRejectsInvalidSessionConfig(t *testing.T) {
 	if _, err := New(config); !errors.Is(err, ErrInvalidConfig) {
 		t.Fatalf("New() error = %v, want ErrInvalidConfig", err)
 	}
+	config.SessionConfig = nil
+	config.CUDAOptions = map[string]string{"device_id": ""}
+	if _, err := New(config); !errors.Is(err, ErrInvalidConfig) {
+		t.Fatalf("New() error = %v, want ErrInvalidConfig", err)
+	}
+	config.CUDAOptions = nil
+	config.TensorRTOptions = map[string]string{"": "1"}
+	if _, err := New(config); !errors.Is(err, ErrInvalidConfig) {
+		t.Fatalf("New() error = %v, want ErrInvalidConfig", err)
+	}
 }
 
 func TestNewFromFSRejectsInvalidFSPaths(t *testing.T) {

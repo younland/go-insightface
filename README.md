@@ -136,6 +136,8 @@ func run() error {
 | `NMSThreshold` | float32 | `0.4` | NMS IoU 阈值，取值 `[0,1]` |
 | `IntraOpThreads` | int | ORT 默认 | 算子内并行线程数，`0` 用默认，不得为负 |
 | `SessionConfig` | map[string]string | 关闭 intra-op 自旋 | 追加 ONNX Runtime 会话配置项（经 `AddSessionConfigEntry` 应用），同名键覆盖默认项；默认注入 `session.intra_op.allow_spinning=0`（空闲时不占用 CPU），键与值均须非空 |
+| `CUDAOptions` | map[string]string | provider 默认 | CUDAExecutionProvider 选项（`device_id`、`cudnn_conv_algo_search`、`gpu_mem_limit`、`arena_extend_strategy` 等），provider 被自动启用时生效；键与值均须非空 |
+| `TensorRTOptions` | map[string]string | provider 默认 | TensorrtExecutionProvider 选项，provider 被自动启用时生效；键与值均须非空 |
 
 `MatcherConfig` 字段：
 
