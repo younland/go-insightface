@@ -10,15 +10,19 @@ startup, or opt into the build/download and caller-embedding mechanisms in
 [asset provisioning](assets.md).
 
 Execution providers are selected automatically: on every session load the
-adapter queries the library's available providers and enables CUDA first,
-with TensorRT as fallback, so GPU builds work without configuration. If
-session creation with GPU providers fails (for example a GPU build without
-CUDA drivers), the adapter logs the failure and retries on CPU; CPU-only
-builds are unaffected. `Config.ExecutionProviders` overrides the automatic
-order with an explicit provider list (for example `["TensorrtExecutionProvider"]`
-forces TensorRT, an empty non-nil slice forces CPU); names outside
-CUDA/TensorRT or missing from the loaded library are rejected during
-initialization rather than silently ignored.
+adapter queries the library's available providers and mounts only the first
+available GPU provider (CUDA preferred, TensorRT as fallback). Fallback EPs
+are not mounted automatically: ORT executes in mount order, so a secondary
+EP would never receive the graph yet still pay its runtime cost (the
+TensorRT libraries alone map hundreds of MB per process on Jetson). If
+session creation with the selected provider fails (for example a GPU build
+without CUDA drivers), the adapter logs the failure and retries on CPU;
+CPU-only builds are unaffected. `Config.ExecutionProviders` overrides the
+automatic selection with an explicit provider list (for example
+`["TensorrtExecutionProvider"]` forces TensorRT, `["CUDAExecutionProvider",
+"TensorrtExecutionProvider"]` mounts both, and an empty non-nil slice forces
+CPU); names outside CUDA/TensorRT or missing from the loaded library are
+rejected during initialization rather than silently ignored.
 
 Sessions are created with `session.intra_op.allow_spinning=0` by default so
 idle sessions do not keep the intra-op thread pool spinning on a CPU core.

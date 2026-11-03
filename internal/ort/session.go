@@ -154,17 +154,20 @@ func (r *Runtime) LoadReader(modelLabel string, modelReader io.Reader, params Se
 // present and needs no enable call, so it is never part of the selection result.
 var autoProviderOrder = []string{upstream.ProviderCUDA, upstream.ProviderTensorRT}
 
-// gpuProviders maps the provider names this adapter knows how to enable to
-// their auto-order rank for validation and sorting.
+// gpuProviders maps the provider names this adapter knows how to enable.
 var gpuProviders = map[string]bool{
 	upstream.ProviderCUDA:     true,
 	upstream.ProviderTensorRT: true,
 }
 
 // selectProviders returns the GPU providers to enable, best first. A nil
-// preference uses autoProviderOrder (CUDA first, then TensorRT). An explicit
-// preference is strict: every name must be a known GPU provider and present in
-// available, otherwise an error is returned instead of silently degrading.
+// preference mounts only the first available provider from autoProviderOrder:
+// mounting every available GPU provider would load each EP's runtime into the
+// process (hundreds of MB for TensorRT's libraries) even though the primary EP
+// handles the whole graph, so fallback EPs are not mounted automatically. An
+// explicit preference is strict: every name must be a known GPU provider and
+// present in available, otherwise an error is returned instead of silently
+// degrading; explicit lists may enable multiple providers on purpose.
 func selectProviders(available []string, preference []string) ([]string, error) {
 	if preference == nil {
 		return selectAutoProviders(available), nil
@@ -191,21 +194,21 @@ func selectProviders(available []string, preference []string) ([]string, error) 
 	return selected, nil
 }
 
-// selectAutoProviders returns the GPU providers from available in default
-// preference order. Matching is exact and case-sensitive, mirroring the names
-// returned by the ONNX Runtime OrtGetAvailableProviders.
+// selectAutoProviders returns at most one GPU provider: the first entry of
+// autoProviderOrder present in available, or nil when only CPU is available.
+// Matching is exact and case-sensitive, mirroring the names returned by the
+// ONNX Runtime OrtGetAvailableProviders.
 func selectAutoProviders(available []string) []string {
 	present := make(map[string]bool, len(available))
 	for _, name := range available {
 		present[name] = true
 	}
-	var selected []string
 	for _, name := range autoProviderOrder {
 		if present[name] {
-			selected = append(selected, name)
+			return []string{name}
 		}
 	}
-	return selected
+	return nil
 }
 
 // AvailableProviders returns the execution provider names exposed by the loaded

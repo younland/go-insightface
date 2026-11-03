@@ -42,8 +42,8 @@ func TestSelectAutoProviders(t *testing.T) {
 		{name: "nil", available: nil, want: nil},
 		{name: "cpu only", available: []string{"CPUExecutionProvider"}, want: nil},
 		{name: "cuda", available: []string{"CPUExecutionProvider", "CUDAExecutionProvider"}, want: []string{"CUDAExecutionProvider"}},
-		{name: "cuda and tensorrt default order", available: []string{"CPUExecutionProvider", "CUDAExecutionProvider", "TensorrtExecutionProvider"}, want: []string{"CUDAExecutionProvider", "TensorrtExecutionProvider"}},
-		{name: "tensorrt only", available: []string{"TensorrtExecutionProvider", "CPUExecutionProvider"}, want: []string{"TensorrtExecutionProvider"}},
+		{name: "first match wins when both available", available: []string{"CPUExecutionProvider", "CUDAExecutionProvider", "TensorrtExecutionProvider"}, want: []string{"CUDAExecutionProvider"}},
+		{name: "tensorrt fallback without cuda", available: []string{"TensorrtExecutionProvider", "CPUExecutionProvider"}, want: []string{"TensorrtExecutionProvider"}},
 		{name: "case sensitive", available: []string{"cudaexecutionprovider"}, want: nil},
 		{name: "unknown provider ignored", available: []string{"CPUExecutionProvider", "OpenVINOExecutionProvider"}, want: nil},
 	}
@@ -94,13 +94,13 @@ func TestMergeSessionConfig(t *testing.T) {
 func TestSelectProviders(t *testing.T) {
 	available := []string{"CPUExecutionProvider", "CUDAExecutionProvider", "TensorrtExecutionProvider"}
 
-	t.Run("nil preference uses default order", func(t *testing.T) {
+	t.Run("nil preference mounts first available only", func(t *testing.T) {
 		got, err := selectProviders(available, nil)
 		if err != nil {
 			t.Fatal(err)
 		}
-		want := []string{"CUDAExecutionProvider", "TensorrtExecutionProvider"}
-		if len(got) != len(want) || got[0] != want[0] || got[1] != want[1] {
+		want := []string{"CUDAExecutionProvider"}
+		if len(got) != len(want) || got[0] != want[0] {
 			t.Fatalf("selectProviders() = %v, want %v", got, want)
 		}
 	})
